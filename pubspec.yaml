@@ -39,6 +39,9 @@ dependencies:
   path_provider: ^2.1.5
   printing: ^5.13.3
   image_picker:
+  video_thumbnail:
+  video_player:
+  #ffmpeg_kit_flutter_min:
   path:
   string_similarity:
 
