@@ -38,7 +38,12 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.0
   path_provider: ^2.1.5
   printing: ^5.13.3
+  image:
+  permission_handler:
+  google_mlkit_face_detection:
+  camera:
   image_picker:
+  google_ml_kit: ^0.20.0
   video_thumbnail:
   video_player:
   #ffmpeg_kit_flutter_min:
