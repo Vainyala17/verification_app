@@ -40,7 +40,7 @@ dependencies:
   printing: ^5.13.3
   image:
   permission_handler:
-  google_mlkit_face_detection:
+  google_mlkit_face_detection: ^0.13.1
   camera:
   image_picker:
   google_ml_kit: ^0.20.0
