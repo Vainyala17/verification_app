@@ -1,4 +1,4 @@
-// OPTIMIZED Fast Face Liveness Detection Code
+// OPTIMIZED Fast Face Liveness Detection Code with Image Capture
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -99,6 +99,10 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
   bool _isProcessing = false;
   int _frameSkipCounter = 0;
   static const int FRAME_SKIP = 3; // Process every 3rd frame for speed
+
+  // ONLY NEW ADDITION: Image capture variables
+  XFile? _capturedImage;
+  bool _isCapturingImage = false;
 
   @override
   void initState() {
@@ -300,8 +304,8 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
 
       debugPrint("✅ BLINK detected! Count: $_blinkCount");
 
-      // Complete verification after 1 blink (or change to 3 if you want 3 blinks)
-      if (mounted && _blinkCount >= 3) { // Change to >= 3 if you want 3 blinks
+      // Complete verification after 3 blinks
+      if (mounted && _blinkCount >= 3) {
         _completeVerification();
       }
     }
@@ -309,7 +313,39 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
     _previousEyesOpen = eyesOpen;
   }
 
-  void _completeVerification() {
+  // ONLY NEW ADDITION: Capture image method
+  Future<void> _captureImage() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized || _isCapturingImage) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _isCapturingImage = true;
+      });
+
+      // Stop image stream temporarily for capture
+      //await _cameraController!.stopImageStream();
+
+      // Capture the image
+      final XFile image = await _cameraController!.takePicture();
+
+      setState(() {
+        _capturedImage = image;
+        _isCapturingImage = false;
+      });
+
+      debugPrint("✅ Image captured successfully: ${image.path}");
+
+    } catch (e) {
+      debugPrint('❌ Error capturing image: $e');
+      setState(() {
+        _isCapturingImage = false;
+      });
+    }
+  }
+
+  void _completeVerification() async {
     setState(() {
       _livenessVerified = true;
       _instructionText = "Verification Complete!";
@@ -319,11 +355,16 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
       _cameraController?.stopImageStream();
     } catch (_) {}
 
+    // ONLY NEW ADDITION: Capture image after verification
+    await _captureImage();
+
     // OPTIMIZED: Show success immediately
     Timer(Duration(milliseconds: 500), () => _showSuccessDialog());
   }
 
   void _showSuccessDialog() {
+    debugPrint("🔵 Showing success dialog. _capturedImage is ${_capturedImage != null ? 'NOT NULL' : 'NULL'}");
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -340,7 +381,21 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
           TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).pop();
+                // ONLY NEW ADDITION: Show captured image screen
+                if (_capturedImage != null) {
+                  debugPrint("✅ Navigating to captured image screen: ${_capturedImage!.path}");
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CapturedImageScreen(
+                        imagePath: _capturedImage!.path,
+                      ),
+                    ),
+                  );
+                } else {
+                  debugPrint("❌ No captured image found, going back to home screen");
+                  Navigator.of(context).pop();
+                }
               },
               child: Text('OK')
           )
@@ -412,6 +467,8 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
         _livenessVerified = false;
         _instructionText = "Position your face in the frame";
         _previousEyesOpen = true;
+        // ONLY NEW ADDITION: Reset captured image
+        _capturedImage = null;
       });
     }
   }
@@ -494,6 +551,25 @@ class _FaceDetectionScreenState extends State<FaceDetectionScreen> {
                 right: 20,
                 child: _buildStatusRow()
             ),
+
+            // ONLY NEW ADDITION: Show capturing indicator
+            if (_isCapturingImage)
+              Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 20),
+                      Text(
+                        'Capturing Image...',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ]
       )
           : Center(
@@ -601,4 +677,94 @@ class SimpleFaceDetectionPainter extends CustomPainter {
   @override
   bool shouldRepaint(SimpleFaceDetectionPainter oldDelegate) =>
       oldDelegate.faces != faces;
+}
+
+// ONLY NEW ADDITION: Captured Image Display Screen
+class CapturedImageScreen extends StatelessWidget {
+  final String imagePath;
+
+  const CapturedImageScreen({Key? key, required this.imagePath}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text('Captured Image'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.of(context).pop();// Go back to home screen
+          },
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              margin: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.file(
+                  File(imagePath),
+                  fit: BoxFit.cover,
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  height: MediaQuery.of(context).size.height * 0.6,
+                ),
+              ),
+            ),
+            SizedBox(height: 30),
+            Text(
+              'Face Verification Successful!',
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Image captured and stored successfully',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();// Go back to home screen
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+              ),
+              child: Text(
+                'Done',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
